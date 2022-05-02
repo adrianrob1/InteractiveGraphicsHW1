@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+  <link rel="stylesheet" href="https://unpkg.com/purecss@2.1.0/build/pure-min.css" integrity="sha384-yHIFVG6ClnONEA5yB5DJXfW2/KC173DIQrYoZMEtBvGzmf0PKiGyNEqe9N6BNDBH" crossorigin="anonymous">
+
+  <img id="texWood" src ="wood_texture.png" hidden></img>
+
+  <div class="flex-container" style="display:flex; justify-content: center; align-items: center; flex-flow: row wrap;">
+    <div>
+      <canvas id="gl-canvas" width="512" height="512"> </canvas>
+    </div>
+
+    <div class="flex-container" style="display:flex; flex-direction:column; padding: 2em;">
+      <div>
+        <span class="pure-menu-heading">Camera</span>
+
+        <div style="padding: 0.25em 0em;">
+          <button class="pure-button" id = "Button1">-</button>
+          Z far
+          <button class="pure-button" id = "Button2">+</button>
+
+          <button class="pure-button" id = "Button3">-</button>
+          R dist
+          <button class="pure-button" id = "Button4">+</button>
+        </div>
+
+        <div style="padding: 0.25em 0em;">
+          <button class="pure-button" id = "Button5">-</button>
+          Theta
+          <button class="pure-button" id = "Button6">+</button>
+
+          <button class="pure-button" id = "Button7">-</button>
+          Phi
+          <button class="pure-button" id = "Button8">+</button>
+        </div>
+
+      </div>
+
+      <div>
+        <span class="pure-menu-heading">Material</span>
+        <div>
+          <label>
+            Shininess 1
+          </label>
+          <input id="matShininess" type="range"
+            min="1" max="100" step="1" value="50.0" />
+          <label>
+            100
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <span class="pure-menu-heading">Spotlight</span>
+        <div>
+          <label class="pure-checkbox">
+            Spotlight 
+            <input type="checkbox" checked="true" id = "spotlightSwitch"></input> 
+          </label>
+          <label>
+          Intensity 0.25<input id="spotlightIntensitySlider" type="range"
+          min="0.25" max="7" step="0.25" value="3.0" />
+          7
+          </label>
+        </div>
+
+        <div>
+          <label>
+            Light cutoff angle 1
+          </label>
+          <input id="lightCutoff" type="range"
+          min="1" max="30" step="0.5" value="7.5" />
+          <label>30</label>
+        </div>
+
+        <div>
+          <label>
+            Light direction theta -90<input id="lightDirTSlider" type="range"
+            min="-90" max="90" step="0.1" value="0.0" />
+            90
+          </label>
+        </div>
+  
+        <div>
+          <label>
+            Light direction phi -90<input id="lightDirPSlider" type="range"
+            min="-90" max="90" step="0.1" value="0.0" />
+            90
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <span class="pure-menu-heading">Rotation</span>
+
+        <div>
+          <label>
+            Rotation speed 50 
+          </label>
+          <label>
+            <input id="rotSpeed" type="range"
+            min="50" max="400" step="10" value="100.0" />
+            400
+          </label>
+        </div>
+
+        <div>
+          <label>
+            Rotation origin X -3.0<input id="originXSlider" type="range"
+            min="-3.0" max="3" step="0.1" value="0.0" />
+            3.0
+          </label>
+        </div>
+
+        <div>
+          <label>
+            Rotation origin Y -3.0<input id="originYSlider" type="range"
+            min="-3.0" max="3" step="0.1" value="0.0" />
+            3.0
+          </label>
+        </div>
+
+        <div>
+          <label>
+            Rotation origin Z -3.0<input id="originZSlider" type="range"
+            min="-3.0" max="3" step="0.1" value="0.0" />
+            3.0
+          </label>
+        </div>
+      </div>
+
+      <div style="padding: 0.25em 0em;">
+        <button class="pure-button" id= "xButton">Rotate X</button>
+        <button class="pure-button" id= "yButton">Rotate Y</button>
+        <button class="pure-button" id= "zButton">Rotate Z</button>
+        <button class="pure-button" id = "ButtonT">Start/Stop</button>
+      </div>
+      <div style="padding: 0.25em 0em;">
+        <button class="pure-button" id = "ButtonRotDirection">Toggle Rotation Direction</button>
+      </div>
+      <div style="padding: 0.25em 0em;">
+        <button class="pure-button" id = "ButtonTexture">Toggle Texture</button>
+        <button class="pure-button" id = "ButtonShader">Toggle Shader</button>
+        <button class="pure-button" id = "ButtonMB">Toggle Motion Blur</button>
+      </div>
+    </div>
+  </div>
+
+  <script id="vertex-shader" type="x-shader/x-vertex">
+  #version 300 es
+
+  precision mediump float;
+
+  in  vec4 aPosition, aNormal, aColor;
+  in vec2 aTexCoord;
+  out vec4 vColor, diffColor, specColor;
+  out vec2 vTexCoord;
+  out vec3 N, vPos;
+
+  uniform sampler2D uTextureMap;
+  uniform mat4 uModelMatrix, uViewMatrix, uRotationMatrix, uLightRotation, 
+    uProjectionMatrix;
+  uniform vec3 uLightDirection, uEye;
+  uniform vec4 uAmbientLight, uLightPosition;
+  uniform float uLightCutoff, uLightAttenuation, uMatShininess,
+                uLightIntensity;
+  uniform bool uTextureFlag, uShadeVertexFlag;
+  uniform vec4 Kd, Ks;
+
+  void main()
+  {
+    vec4 pos = (uRotationMatrix * uModelMatrix * aPosition);
+    
+    vPos = pos.xyz;
+    N = normalize((uRotationMatrix * aNormal).xyz);  // normal
+    vec4 ld = uLightRotation * vec4(uLightDirection, 1);
+
+    gl_Position = uProjectionMatrix * uViewMatrix * pos;
+    vTexCoord = aTexCoord;
+
+    if(uShadeVertexFlag){    
+      vec3 E = normalize(uEye); // eye
+      vec3 L = normalize(uLightPosition.xyz - vPos);
+      vec3 H = normalize(L + E);
+
+      float dist = distance(vPos, uLightPosition.xyz);
+      
+      // Compute terms in the illumination equation
+
+      float attenuation = dot(-L, normalize(ld.xyz));
+      if(attenuation < uLightCutoff)
+        attenuation = 0.0;
+      else
+        attenuation = pow(attenuation, uLightAttenuation);
+
+      attenuation /= dist + 0.01*dist*dist;
+      attenuation *= uLightIntensity;
+
+      float Id = max(dot(L, N), 0.0);
+      vec4  diffuse = Kd * Id;
+
+      float Is = pow( max(dot(N, H), 0.0), uMatShininess );
+      vec4  specular = Ks * Is;
+
+      if( dot(L, N) < 0.0 ) {
+          specular = vec4(0.0, 0.0, 0.0, 1.0);
+      }
+
+      specColor = specular * attenuation;
+      diffColor = diffuse * attenuation;
+      vColor = aColor;
+    }
+    else
+      vColor = aColor;
+  }
+  </script>
+
+  <script id="fragment-shader" type="x-shader/x-fragment">
+  #version 300 es
+
+  precision mediump float;
+
+  in vec4 vColor, diffColor, specColor;
+  in  vec2 vTexCoord;
+  in vec3 N, vPos;
+  out vec4 fColor;
+
+  uniform sampler2D uTextureMap;
+  uniform mat4 uLightRotation;
+  uniform vec4 uAmbientLight, uLightPosition;
+  uniform vec3 uLightDirection, uEye;
+  uniform float uLightCutoff, uLightAttenuation, uMatShininess,
+                uLightIntensity;
+  uniform bool uTextureFlag, uShadeVertexFlag;
+  uniform vec4 Kd, Ks;
+
+  void main()
+  {
+    vec4 objColor;
+    if(uTextureFlag)
+      objColor = texture(uTextureMap, vTexCoord);
+    else
+      objColor = vColor;
+
+    if(uShadeVertexFlag){
+      fColor = clamp((diffColor + uAmbientLight) * objColor + specColor, 
+      vec4(0,0,0,0), vec4(1,1,1,1));;
+    }
+    else {
+      vec3 NN, L, H, E;
+      NN = normalize(N);
+      L = normalize(uLightPosition.xyz - vPos);
+      E = normalize(uEye);
+      H = normalize(L + E);
+      vec4 ld = uLightRotation * vec4(uLightDirection, 1);
+      
+      float dist = distance(vPos, uLightPosition.xyz);
+
+      // Compute terms in the illumination equation
+      vec4 ambient = uAmbientLight;
+
+      float attenuation = dot(-L, normalize(ld.xyz));
+      if(attenuation < uLightCutoff)
+        attenuation = 0.0;
+      else
+        attenuation = pow(attenuation, uLightAttenuation);
+
+      attenuation *= 1.0 / ( 1.0 + 0.9 * dist + 0.01 * pow(dist, 2.0) );
+      attenuation *= uLightIntensity;
+
+      float Id = max(dot(L, NN), 0.0);
+      vec4  diffuse = Kd * Id;
+
+      float Is = pow( max(dot(NN, H), 0.0), uMatShininess );
+      vec4  specular = Ks * Is;
+
+      if( dot(L, N) < 0.0 ) {
+          specular = vec4(0.0, 0.0, 0.0, 1.0);
+      }
+
+      fColor = clamp((diffuse) * objColor + specular, 
+        vec4(0,0,0,0), vec4(1,1,1,1));
+      fColor *= attenuation;
+      fColor = clamp(fColor + ambient * objColor, 
+      vec4(0,0,0,0), vec4(1,1,1,1));
+    }
+    fColor.a = 1.0;
+  }
+  </script>
+
+  <script id="vertex-shader-mb" type="x-shader/x-vertex">
+    #version 300 es
+
+    precision highp float;
+    
+    in vec4 aPosition;
+    in vec2 aTexCoord;
+    
+    out vec2 vTexCoord;
+    
+    void main()
+    {
+      gl_Position = aPosition;
+      vTexCoord = aTexCoord;
+    }
+    </script>
+
+  <script id="fragment-shader-mb" type="x-shader/x-fragment">
+    #version 300 es
+    
+    precision highp float;
+    
+    in  vec2 vTexCoord;
+    out vec4 fColor;
+    
+    uniform sampler2D uTextureBg, uTextureNewFrame;
+    uniform float uWidth, uHeight, uSpeed;
+    
+    void main()
+    {
+      float dx = (1.0/uWidth);
+      float dy = (1.0/uHeight);
+      float x = vTexCoord.x;
+      float y = vTexCoord.y;
+
+      vec4 oldFrame, newFrame;
+      vec2 texCoord;
+      float step_x, step_y, weight, totalWeight = 0.0;
+      int blur_size = 3;
+
+      for(int i=-blur_size; i<blur_size; i++){
+        for(int j=-blur_size; j<blur_size; j++){
+          step_x = dx * uSpeed * float(j) / float(blur_size * blur_size);
+          step_y = dy * uSpeed * float(i) / float(blur_size * blur_size);
+          texCoord = vec2(x + step_x, y + step_y);
+          weight = 1.0 + sqrt(pow(step_x, 2.0) + pow(step_y, 2.0));
+          oldFrame = texture(uTextureBg, texCoord);
+          newFrame = texture(uTextureNewFrame, texCoord);
+          fColor += weight * (0.4 * oldFrame + 0.6 * newFrame);
+          totalWeight += weight;
+        }
+      }
+
+      fColor /= totalWeight;
+    }
+  </script>
+
+  <script src="../Common/initShaders.js"></script>
+  <script src="../Common/MV.js"></script>
+  <script src="homework1.js"></script>
+</body>
+</html>
